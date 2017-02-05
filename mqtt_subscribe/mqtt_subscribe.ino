@@ -18,7 +18,7 @@ const char* password = "xxxxxx";
 #define ORG "xxxxxx"
 #define DEVICE_TYPE "xxxxxx"
 #define DEVICE_ID "xxxxxx"
-#define TOKEN "xxxxxxxxxxxxxxxxxx"
+#define TOKEN "xxxxxx"
 
 #define ENABLE_SECOND_DS18B20 0
 //-------- Customise the above values --------
@@ -153,16 +153,17 @@ void mqttConnect() {
 
 // in case of none connection,
 // temparature is kept on safety level
+// for ESP8266-01 board is used inverted logic
 void safetyTemperature() {  
     
     Serial.print(safetyTemp);
     if( temperatureIn > safetyTemp)
     {
-        digitalWrite(outPin, LOW);
+        digitalWrite(outPin, HIGH);
     }
     else           
     {
-        digitalWrite(outPin, HIGH);
+        digitalWrite(outPin, LOW);
     }
 }
 
