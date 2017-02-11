@@ -1,7 +1,7 @@
 /**
  * IBM IoT Foundation managed Device
  * 
- * Author: Ant Elder
+ * Author: cij
  * License: Apache License v2
  */
 #include <ESP8266WiFi.h>
@@ -116,6 +116,7 @@ void loop() {
    // request new connection on mqtt
    if (!client.loop() && WiFi.status()== WL_CONNECTED) {
       mqttConnect();
+      initManagedDevice();
    }else
    // if wifi is disconnected =>
    // request new wifi connection
