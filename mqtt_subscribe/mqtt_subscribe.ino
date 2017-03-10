@@ -8,7 +8,10 @@
 #include <PubSubClient.h> // https://github.com/knolleary/pubsubclient/releases/tag/v2.3
 #include <ArduinoJson.h> // https://github.com/bblanchon/ArduinoJson/releases/tag/v5.0.7
 #include <OneWire.h>
+
+
 #include <DallasTemperature.h>
+#include <DHT.h>
 
 
 //-------- Customise these values -----------
@@ -19,12 +22,18 @@ const char* password = "xxxxxx";
 #define DEVICE_TYPE "xxxxxx"
 #define DEVICE_ID "xxxxxx"
 #define TOKEN "xxxxxx"
+//-------- Customise the above values --------  
 
-#define ENABLE_SECOND_DS18B20 0
-//-------- Customise the above values --------
+//-------- temperature and humidity sensor DHT22 --------
+#define pinDHT 12 // set pin for DHT sensor
+// odkomentování správného typu čidla
+//#define typDHT DHT11     // DHT 11
+#define typDHT DHT22   // DHT 22 (AM2302)
+float DHThumid = 0, DHTtemp = 0;
+//--------------------------------------------
 
 //-------- temperature sensor ds18b20 --------
-#define ONE_WIRE_BUS 2  // DS18B20 pin
+#define ONE_WIRE_BUS 13  // DS18B20 pin
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature DS18B20(&oneWire);
 float temperatureIn = 0,temperatureOut = 0;
@@ -54,6 +63,8 @@ long lastPublishMillis;
 //LED on ESP8266 GPIO2
 const int outPin = 0;
 
+// inicializace DHT senzoru s nastaveným pinem a typem senzoru
+DHT DHTsens(pinDHT, typDHT);
 
 void setup() {
    Serial.begin(115200); Serial.println();
@@ -61,6 +72,11 @@ void setup() {
    pinMode(outPin, OUTPUT);
    digitalWrite(outPin, LOW);
 
+#ifdef DHT22
+   // zapnutí komunikace s teploměrem DHT
+   DHTsens.begin();
+#endif
+   
    wifiConnect();
    mqttConnect();
    initManagedDevice();
@@ -68,21 +84,41 @@ void setup() {
 
 void loop() {
 
-   float temperatureInTmp=0 ,temperatureOutTmp=0;
+   float temperatureInTmp = 0 ,temperatureOutTmp = 0;
+   
+
   
    if (millis() - lastPublishMillis > publishInterval) {
 
       // temperature sensor
       DS18B20.requestTemperatures();
 
-     // get value for first sensor
-      temperatureInTmp = DS18B20.getTempCByIndex(0);
-      Serial.print("Temperature In: ");
-      Serial.println(temperatureIn);
 
-#if ENABLE_SECOND_DS18B20 == 1
+      // pomocí funkcí readTemperature a readHumidity načteme
+      // do proměnných tep a vlh informace o teplotě a vlhkosti,
+      // čtení trvá cca 250 ms
+      float DHThumidTmp = 0, DHTtempTmp = 0;
+      
+      DHTtempTmp = DHTsens.readTemperature();
+      DHThumidTmp = DHTsens.readHumidity();
+      // kontrola, jestli jsou načtené hodnoty čísla pomocí funkce isnan
+      if (!isnan(DHTtempTmp)) {
+        DHTtemp = DHTtempTmp;
+      }
+      if (!isnan(DHThumidTmp))
+      {
+        DHThumid = DHThumidTmp;
+      }
+
+      Serial.print("DHTtemp: ");
+      Serial.println(DHTtemp);
+      Serial.print("DHThumid: ");
+      Serial.println(DHThumid);
+      
+
+
       // get value for second sensor
-      temperatureOutTmp = DS18B20.getTempCByIndex(1);
+      temperatureOutTmp = DS18B20.getTempCByIndex(0);
       Serial.print("Temperature Out: ");
       Serial.println(temperatureOut);
 
@@ -91,11 +127,7 @@ void loop() {
       {
           temperatureOut = temperatureOutTmp; 
       }
-#endif
-      if(temperatureInTmp != 85)// failure state of ds18b20 sends 85
-      {
-           temperatureIn = temperatureInTmp; 
-      }                         
+
 
       // check if connection is not estabilished 
       if(WiFi.status() != WL_CONNECTED || !client.connected())
@@ -158,7 +190,7 @@ void mqttConnect() {
 void safetyTemperature() {  
     
     Serial.print(safetyTemp);
-    if( temperatureIn > safetyTemp)
+    if( DHTtemp > safetyTemp)
     {
         digitalWrite(outPin, HIGH);
     }
@@ -217,13 +249,16 @@ void initManagedDevice() {
 void publishData() {
 
    // build payload message 
-   String payload =  "{\"d\":{\"temperIn\":";  
-   payload += temperatureIn;
-
-#if ENABLE_SECOND_DS18B20 == 1   
+   String payload =  "{\"d\":{\"temperIn\":";
+   
+   payload += DHTtemp;
+   
+   payload += ",\"humidIn\":";
+   payload += DHThumid;
+   
    payload += ",\"temperOut\":";
    payload += temperatureOut;
-#endif
+
    
    payload += "}}";
  
